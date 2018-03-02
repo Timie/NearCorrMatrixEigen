@@ -2,21 +2,25 @@
 #define NCORR_LDL_GMW_H
 
 #include <Eigen/Core>
-
+#include <Eigen/QR> // for colPivHouseholderQr needed in Solve.
 
 namespace ncorr
 {
     /**
      * This method implements algorithm for finding nearest correlation matrix based on modified
-     * LDL Cholesky decomposition for non (positive definite) matrices. The implementation is a
-     * rewrite of implmentation by Brian Borchers (Dept. of Mathematics, New Mexico Tech), and
-     * Michael Zibulevksy, originally written in 1994 - 2002 for Matlab, and is based upon book
-     * "Practical Optimization" by Gill, Murray and Wright, p. 111.
+     * LDL Cholesky decomposition for non-(positive semi-definite) matrices. The implementation
+     * is a rewrite of implmentation by Brian Borchers (Dept. of Mathematics, New Mexico Tech),
+     * and Michael Zibulevksy, originally written in 1994 - 2002 for Matlab, and is based upon
+     * book "Practical Optimization" by Gill, Murray and Wright, p. 111.
      *
-     * In case of non-square input matrix, the method throws exception in debug mode. In
-     * release mode, it does not check and assumes squareness (thus, undef behaviour).
-     * In case of empty matrix, an empty matrix is returned. In case of algorithm failure
-     * (e.g., the optimisation fails), it should (not guaranteed) return NaN matrix elements.
+     * The original Matlab implementation is available here (in pdf form):
+     * http://people.sc.fsu.edu/~inavon/5420a/ldlt.pdf
+     *
+     * The input matrix should be square and symmetrical.
+     * The method does not check the correct size of the matrix, or whether it is symmetrical,
+     * or empty, or whether it contains nan or inf. All these checks are the responsibility
+     * of the caller.
+     *
      */
     template <typename DerivedA>
     Eigen::Matrix<typename Eigen::MatrixBase<DerivedA>::Scalar,
@@ -31,7 +35,10 @@ namespace ncorr
 
 
 
-    /** Given a symmetric matrix G, find a matrix E of "small" norm and c
+    /**
+      * The following description is partially taken from the original implementation.
+      *
+      * Given a symmetric matrix G, find a matrix E of "small" norm and c
       *  L, and D such that  G+E is Positive Definite, and
       *
       *      G+E = L*D*L'
@@ -55,7 +62,9 @@ namespace ncorr
     template <typename DerivedG,
               typename DerivedL,
               typename DerivedD,
-              typename DerivedP>
+              typename DerivedP = Eigen::Matrix<typename Eigen::MatrixBase<DerivedG>::Scalar,
+                                                Eigen::MatrixBase<DerivedG>::RowsAtCompileTime,
+                                                1>>
     Eigen::Matrix<typename Eigen::MatrixBase<DerivedG>::Scalar,
                   Eigen::MatrixBase<DerivedG>::RowsAtCompileTime,
                   Eigen::MatrixBase<DerivedG>::ColsAtCompileTime>
@@ -64,7 +73,7 @@ namespace ncorr
              Eigen::MatrixBase<DerivedD> &D,
              Eigen::MatrixBase<DerivedP> *pneg = nullptr)
     {
-        typedef Eigen::MatrixBase<DerivedG>::Scalar GScalar;
+        typedef typename Eigen::MatrixBase<DerivedG>::Scalar GScalar;
         typedef Eigen::Matrix<typename Eigen::MatrixBase<DerivedG>::Scalar,
                               Eigen::MatrixBase<DerivedG>::RowsAtCompileTime,
                               Eigen::MatrixBase<DerivedG>::ColsAtCompileTime> EType;
@@ -75,7 +84,7 @@ namespace ncorr
 
         const Eigen::Index n = G.cols(); // num of dimensions
         GScalar gamma = G.diagonal().maxCoeff(); // maximum element at diagonal
-        GScalar zi = (G - G.diagonal().asDiagonal()).maxCoeff(); // maximum element of the diagonal (max element of G with zeroed diagonal).
+        GScalar zi = (G - EType(G.diagonal().asDiagonal())).maxCoeff(); // maximum element of the diagonal (max element of G with zeroed diagonal).
         GScalar nu = std::max<GScalar>(1, std::sqrt(n*n - 1));
         GScalar beta2 = std::max<GScalar>(std::max<GScalar>(gamma,
                                                             zi / nu),
@@ -95,13 +104,7 @@ namespace ncorr
             // calculate j-th row of L
             if(j > 0)
             {
-//                for(Eigen::Index bb = 0;
-//                    bb < j;
-//                    ++bb)
-//                {
-//                    L(j, bb) = C(j,bb) / D(bb, bb);
-//                }
-                L.row(j).colRange(0,j) = C.row(j).colRange(0,j).asArray() / D.block(0,0, j,j).diagonal().asArray();
+                L.block(j,0,1,j) = C.block(j,0,1,j).array() / D.block(0,0,j,j).diagonal().transpose().array();
             }
 
             // update j-th column of C
@@ -109,23 +112,15 @@ namespace ncorr
             {
                 if((j+1) < n)
                 {
-                    // C(ee, j)               = G(ee,j)                   -
-                    C.col(j).rowRange(j+1, n) = G.col(j).rowRange(j+1, n) -
-                                            //   (L(j,     bb)              C(ee,bb)                         '           )'
-                                                ((L.row(j).colRange(0,j) * (C.rowRange(j+1, n).colRange(0,j).transpose())).transpose());
+                    C.block(j+1,j, 1, n-j-1) = G.block(j+1,j, 1, n-j-1) -
+                                               ((L.block(j,0,1,j) * (C.block(j+1, 0, n-j-1, j).transpose())).transpose());
                 }
             }
             else
             {
                 if((j+1) < n)
                 {
-//                    for(Eigen::Index ee = j + 1;
-//                        ee < n;
-//                        ++ee)
-//                    {
-//                        C(ee, j) = G(ee,j);
-//                    }
-                    C.col(j).rowRange(j+1, n) = G.col(j).rowRange(j+1, n);
+                    C.block(j+1,j, 1, n-j-1) = G.block(j+1,j, 1, n-j-1);
                 }
             }
 
@@ -137,7 +132,7 @@ namespace ncorr
             }
             else
             {
-                theta = C.col(j).rowRange(j+1, n).cwiseAbs().maxCoeff();
+                theta = C.block(j+1,j, 1, n-j-1).cwiseAbs().maxCoeff();
             }
 
             // update D
@@ -179,13 +174,13 @@ namespace ncorr
 
             if(m < GScalar(0))
             {
-                *pneg = std::numeric_limits<GScalar>::quiet_NaN();
+                pneg->array() = std::numeric_limits<GScalar>::quiet_NaN();
             }
             else
             {
                 EVecType rhs;
                 rhs.resize(n,1);
-                rhs.setZero;
+                rhs.setZero();
                 rhs(col) = GScalar(1);
                 *pneg = L.colPivHouseholderQr().solve(rhs); // here, using colPivHouseholderQr instead of generic matlab's solve.
             }
@@ -202,26 +197,9 @@ namespace ncorr
                   Eigen::MatrixBase<DerivedA>::ColsAtCompileTime>
     findNearestCorrelationMatrix_LDL_GMW(const Eigen::MatrixBase<DerivedA> &m)
     {
-        assert(m.cols() == m.rows()); // input matrix must be squared
-
-
         typedef Eigen::Matrix<typename Eigen::MatrixBase<DerivedA>::Scalar,
                               Eigen::MatrixBase<DerivedA>::RowsAtCompileTime,
                               Eigen::MatrixBase<DerivedA>::ColsAtCompileTime> EType;
-
-        if(!m.allFinite())
-        {
-            return EType::Constant(std::numeric_limits<typename Eigen::MatrixBase<DerivedA>::Scalar>::quiet_NaN());
-        }
-
-        if((m.cols() == 0) ||
-           (m.rows() == 0))
-        {
-            return {}; // empty matrix
-        }
-
-
-
 
         EType L, D; // temporaries - used inside of mcholmz1.
 
