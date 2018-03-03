@@ -55,13 +55,14 @@ namespace ncorr {
                                         typename Eigen::MatrixBase<DerivedA>::Scalar tol = std::numeric_limits<typename Eigen::MatrixBase<DerivedA>::Scalar>::quiet_NaN(),
                                         const Eigen::Index max_iterations = 100,
                                         bool *reachedMaxIterations = nullptr,
-                                        const Eigen::MatrixBase<DerivedW> &weights = Eigen::Matrix<typename Eigen::MatrixBase<DerivedA>::Scalar,
-                                                                                                   Eigen::MatrixBase<DerivedA>::RowsAtCompileTime,
-                                                                                                   1>::Constant(1).eval())
+                                        const Eigen::MatrixBase<DerivedW> &weights = getConstantOrEmpty<DerivedW>(1))
     {
         typedef Eigen::Matrix<typename Eigen::MatrixBase<DerivedA>::Scalar,
                 Eigen::MatrixBase<DerivedA>::RowsAtCompileTime,
                 Eigen::MatrixBase<DerivedA>::ColsAtCompileTime> MatrixType; // type of the result
+        typedef Eigen::Matrix<typename Eigen::MatrixBase<DerivedA>::Scalar,
+                              Eigen::MatrixBase<DerivedA>::RowsAtCompileTime,
+                              1> VectorType;
         typedef typename Eigen::MatrixBase<DerivedA>::Scalar ScalarType;
 
         ScalarType eps = Eigen::NumTraits<ScalarType>::epsilon();
@@ -70,6 +71,15 @@ namespace ncorr {
         if(std::isnan(tol))
         {
             tol = eps * A.cols();
+        }
+
+        // set default weights if dynamic size is provided and does not have correct size
+        VectorType effectiveWeights = weights; //
+        if(effectiveWeights.rows() != A.rows())
+        {
+            effectiveWeights.resize(A.rows(),
+                                    1);
+            effectiveWeights.array() = ScalarType(1);
         }
 
         MatrixType X = A;
@@ -84,7 +94,7 @@ namespace ncorr {
         ScalarType rel_diffX = std::numeric_limits<ScalarType>::infinity();
         ScalarType rel_diffXY = std::numeric_limits<ScalarType>::infinity();
 
-        MatrixType Whalf = (weights * weights.transpose()).array().sqrt();
+        MatrixType Whalf = (effectiveWeights * effectiveWeights.transpose()).array().sqrt();
 
         Eigen::Index iteration = 0;
 

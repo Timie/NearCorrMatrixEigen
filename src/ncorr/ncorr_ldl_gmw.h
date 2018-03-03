@@ -201,7 +201,11 @@ namespace ncorr
                               Eigen::MatrixBase<DerivedA>::RowsAtCompileTime,
                               Eigen::MatrixBase<DerivedA>::ColsAtCompileTime> EType;
 
-        EType L, D; // temporaries - used inside of mcholmz1.
+        EType L, D; // temporaries - used inside of mcholmz1
+        L.resize(m.rows(),
+                 m.cols());
+        D.resize(m.rows(),
+                 m.cols());
 
         auto E = mcholmz1(m,
                           L,

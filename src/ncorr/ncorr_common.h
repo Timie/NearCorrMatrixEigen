@@ -43,4 +43,31 @@ getSymmetric(const Eigen::MatrixBase<DerivedA> &m)
     return result;
 }
 
+// for compile-time sized matrices, it returns constant value.
+template <typename DerivedT>
+typename std::enable_if<!((Eigen::MatrixBase<DerivedT>::RowsAtCompileTime == Eigen::Dynamic) ||
+                        (Eigen::MatrixBase<DerivedT>::ColsAtCompileTime == Eigen::Dynamic)),
+                       Eigen::Matrix<typename Eigen::MatrixBase<DerivedT>::Scalar,
+                                     Eigen::MatrixBase<DerivedT>::RowsAtCompileTime,
+                                     Eigen::MatrixBase<DerivedT>::ColsAtCompileTime>>::type
+getConstantOrEmpty(typename Eigen::MatrixBase<DerivedT>::Scalar value)
+{
+    return Eigen::Matrix<typename Eigen::MatrixBase<DerivedT>::Scalar,
+                         Eigen::MatrixBase<DerivedT>::RowsAtCompileTime,
+                         Eigen::MatrixBase<DerivedT>::ColsAtCompileTime>::Constant(value);
+}
+
+// for dynamically sized matrices, it returns empty matrix
+template <typename DerivedT>
+typename std::enable_if<((Eigen::MatrixBase<DerivedT>::RowsAtCompileTime == Eigen::Dynamic) ||
+                         (Eigen::MatrixBase<DerivedT>::ColsAtCompileTime == Eigen::Dynamic)),
+                        Eigen::Matrix<typename Eigen::MatrixBase<DerivedT>::Scalar,
+                                      Eigen::MatrixBase<DerivedT>::RowsAtCompileTime,
+                                      Eigen::MatrixBase<DerivedT>::ColsAtCompileTime>>::type
+getConstantOrEmpty(typename Eigen::MatrixBase<DerivedT>::Scalar /*value*/) // value is ignored.
+{
+    return {};
+}
+
+
 #endif // NCORR_COMMON_H
