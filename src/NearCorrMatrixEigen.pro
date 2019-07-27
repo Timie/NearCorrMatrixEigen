@@ -1,6 +1,6 @@
 TEMPLATE = app
-CONFIG += console c++11
-CONFIG -= app_bundle
+CONFIG += c++11
+CONFIG -= app_bundle console
 CONFIG -= qt
 
 
@@ -8,6 +8,8 @@ CONFIG -= qt
 #QMAKE_CXXFLAGS -= /MP1
 #QMAKE_CXXFLAGS -= /maxcpucount1
 #QMAKE_CXXFLAGS += /Zm2000
+
+# QMAKE_CXXFLAGS += -Wa,-mbig-obj
 
 # Change this path to your instance of the Eigen library:
 INCLUDEPATH += "C:/Eigen/SOURCE"

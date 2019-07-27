@@ -26,7 +26,7 @@ namespace ncorr
     Eigen::Matrix<typename Eigen::MatrixBase<DerivedA>::Scalar,
                   Eigen::MatrixBase<DerivedA>::RowsAtCompileTime,
                   Eigen::MatrixBase<DerivedA>::ColsAtCompileTime>
-    findNearestCorrelationMatrix_LDL_GMW(const Eigen::MatrixBase<DerivedA> &m);
+    findNearestCovarianceMatrix_LDL_GMW(const Eigen::MatrixBase<DerivedA> &m);
 
 
 
@@ -101,10 +101,14 @@ namespace ncorr
             j < n;
             ++j)
         {
+            Eigen::Index eeStart = j+1;
+            Eigen::Index eeLength = n-j-1;
+            Eigen::Index bbStart = 0;
+            Eigen::Index bbLength = j;
             // calculate j-th row of L
             if(j > 0)
             {
-                L.block(j,0,1,j) = C.block(j,0,1,j).array() / D.block(0,0,j,j).diagonal().transpose().array();
+                L.block(j,bbStart,1,bbLength) = C.block(j,bbStart,1,bbLength).array() / D.block(bbStart,bbStart,bbLength,bbLength).diagonal().transpose().array();
             }
 
             // update j-th column of C
@@ -112,15 +116,15 @@ namespace ncorr
             {
                 if((j+1) < n)
                 {
-                    C.block(j+1,j, 1, n-j-1) = G.block(j+1,j, 1, n-j-1) -
-                                               ((L.block(j,0,1,j) * (C.block(j+1, 0, n-j-1, j).transpose())).transpose());
+                    C.block(eeStart, j, eeLength, 1) = G.block(eeStart, j, eeLength, 1) -
+                                               ((L.block(j,bbStart,1,bbLength) * (C.block(eeStart, bbStart, eeLength, bbLength).transpose())).transpose());
                 }
             }
             else
             {
                 if((j+1) < n)
                 {
-                    C.block(j+1,j, 1, n-j-1) = G.block(j+1,j, 1, n-j-1);
+                    C.block(eeStart, j, eeLength, 1) = G.block(eeStart, j, eeLength, 1);
                 }
             }
 
@@ -132,7 +136,7 @@ namespace ncorr
             }
             else
             {
-                theta = C.block(j+1,j, 1, n-j-1).cwiseAbs().maxCoeff();
+                theta = C.block(eeStart, j, eeLength, 1).cwiseAbs().maxCoeff();
             }
 
             // update D
@@ -195,7 +199,7 @@ namespace ncorr
     Eigen::Matrix<typename Eigen::MatrixBase<DerivedA>::Scalar,
                   Eigen::MatrixBase<DerivedA>::RowsAtCompileTime,
                   Eigen::MatrixBase<DerivedA>::ColsAtCompileTime>
-    findNearestCorrelationMatrix_LDL_GMW(const Eigen::MatrixBase<DerivedA> &m)
+    findNearestCovarianceMatrix_LDL_GMW(const Eigen::MatrixBase<DerivedA> &m)
     {
         typedef Eigen::Matrix<typename Eigen::MatrixBase<DerivedA>::Scalar,
                               Eigen::MatrixBase<DerivedA>::RowsAtCompileTime,
@@ -210,6 +214,13 @@ namespace ncorr
         auto E = mcholmz1(m,
                           L,
                           D);
+
+        std::cout << "L\n"
+                  << L
+                  << std::endl;
+        std::cout << "D\n"
+                  << D
+                  << std::endl;
         return m + E;
     }
 
