@@ -29,17 +29,8 @@ namespace ncorr {
         auto B = ncorr::getSymmetric(A);
 
         // Symmetric polar factor of A.
-        auto SVD = B.jacobiSvd(Eigen::ComputeFullV);
-        auto singularValues = SVD.singularValues();
-        Eigen::Matrix<typename Eigen::MatrixBase<DerivedA>::Scalar,
-                        Eigen::MatrixBase<DerivedA>::RowsAtCompileTime,
-                        1> singularValuesFull = Eigen::Matrix<typename Eigen::MatrixBase<DerivedA>::Scalar,
-                Eigen::MatrixBase<DerivedA>::RowsAtCompileTime,
-                1>::Zero(A.rows(), 1);
-        singularValuesFull.head(singularValues.size()) = singularValues;
-
-
-        auto H = (SVD.matrixV() * singularValuesFull.asDiagonal()  * SVD.matrixV().transpose()).eval();
+        auto SVD = B.jacobiSvd(Eigen::ComputeFullV); // We must calculate full V to keep all matrix dimensions.
+        auto H = (SVD.matrixV() * SVD.singularValues().asDiagonal()  * SVD.matrixV().transpose()).eval();
 
         auto Ahat = ((B + H) * 0.5).eval();
 
