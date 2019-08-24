@@ -6,7 +6,62 @@
 
 #include "ncorr/ncorr_common.h"
 
+// TODO: Check with https://www.mathworks.com/matlabcentral/fileexchange/42885-nearestspd
+
 namespace ncorr {
+
+    /**
+     * Based upon https://www.mathworks.com/matlabcentral/fileexchange/42885-nearestspd.
+     *
+     * From Higham: "The nearest symmetric positive semidefinite matrix in the
+     * Frobenius norm to an arbitrary real matrix A is shown to be (B + H)/2,
+     * where H is the symmetric polar factor of B=(A + A')/2."
+     *
+     * http://www.sciencedirect.com/science/article/pii/0024379588902236
+     */
+    template <typename DerivedA>
+    Eigen::Matrix<typename Eigen::MatrixBase<DerivedA>::Scalar,
+                  Eigen::MatrixBase<DerivedA>::RowsAtCompileTime,
+                  Eigen::MatrixBase<DerivedA>::ColsAtCompileTime>
+    findNearestCovarianceMatrix_Higham(const Eigen::MatrixBase<DerivedA> &A, int maxIters = 100)
+    {
+        // Make A symmetric
+        auto B = ncorr::getSymmetric(A);
+
+        // Symmetric polar factor of A.
+        auto SVD = B.jacobiSvd(Eigen::ComputeFullV);
+        auto singularValues = SVD.singularValues();
+        Eigen::Matrix<typename Eigen::MatrixBase<DerivedA>::Scalar,
+                        Eigen::MatrixBase<DerivedA>::RowsAtCompileTime,
+                        1> singularValuesFull = Eigen::Matrix<typename Eigen::MatrixBase<DerivedA>::Scalar,
+                Eigen::MatrixBase<DerivedA>::RowsAtCompileTime,
+                1>::Zero(A.rows(), 1);
+        singularValuesFull.head(singularValues.size()) = singularValues;
+
+
+        auto H = (SVD.matrixV() * singularValuesFull.asDiagonal()  * SVD.matrixV().transpose()).eval();
+
+        auto Ahat = ((B + H) * 0.5).eval();
+
+        makeSymmetric(Ahat);
+
+        // test that Ahat is in fact PD. if it is not so, then tweak it just a bit.
+
+        for(int k = 1; k <= maxIters; ++k)
+        {
+            if (!ncorr::isPositiveSemiDefinite(Ahat))
+            {
+                // Ahat failed the chol test. It must have been just a hair off,
+                // due to floating point trash, so it is simplest now just to
+                // tweak by adding a tiny multiple of an identity matrix.
+                typename Eigen::MatrixBase<DerivedA>::Scalar mineig = Ahat.eigenvalues().array().real().minCoeff();
+                // Ahat.diagonal().array() += (-mineig*k*k + matlabEps(mineig)); // Original version. Not sure whether it is correct.
+                Ahat.diagonal().array() += (k*k*mineig*matlabEps(mineig)); // My version.
+            }
+        }
+
+        return Ahat;
+    }
 
     // Helper function
     template <typename DerivedA>

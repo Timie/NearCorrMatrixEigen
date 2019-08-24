@@ -54,19 +54,73 @@ std::string getCorrectString(bool value)
     }
 }
 
+
 template<typename DerivedA,
          typename DerivedB>
-bool check_T(const std::string &inputName,
+bool checkHighamCovToCorr_T(const std::string &inputName,
            const Eigen::MatrixBase<DerivedA> &testInput,
                            const Eigen::MatrixBase<DerivedB> &expectedResult)
 {
-    Eigen::MatrixXd testInputX = testInput; // to test dynamically sized arrays
-
-    std::cout << inputName << " check: Input:\n"
+    std::cout << inputName << " checkHighamCovToCorr_T: Input:\n"
               << testInput
               << "\nExpected Result:\n"
               << expectedResult
               << std::endl;
+
+    Eigen::MatrixXd testInputX = testInput; // to test dynamically sized arrays
+
+    // Convert to correlation matrix, then find nearest correlation matrix, and then convert back to covariance.
+
+    auto correlationMat = testInput;
+    auto standardDevsVec = ncorr::covarianceToCorrelation(correlationMat);
+
+    auto correlationMatX = testInputX;
+    auto standardDevsVecX = ncorr::covarianceToCorrelation(correlationMatX);
+
+    auto resHigham = ncorr::findNearestCorrelationMatrix_Higham(correlationMat, 0);
+    resHigham = ncorr::correlationToCovariance(resHigham, standardDevsVec);
+    auto resHighamX = ncorr::findNearestCorrelationMatrix_Higham(correlationMatX, 0);
+    resHighamX = ncorr::correlationToCovariance(resHighamX, standardDevsVecX);
+    bool resHighamVerdict = isInTolerance(resHigham,
+                                          expectedResult);
+    bool resHighamXCorrect = !(resHigham.array() != resHighamX.array()).any();
+    std::cout << "Algorithm: Higham. Result:\n"
+              << resHigham
+              << "\nResult (dynamic):\n"
+              << resHighamX
+              << "\nDiff: "
+              << (resHigham - expectedResult).norm()
+              << "\nResulution: "
+              << getPassedString(resHighamVerdict)
+              << "\nDynamic Equal: "
+              << getCorrectString(resHighamXCorrect)
+              << std::endl;
+
+    return resHighamVerdict &&
+           resHighamXCorrect;
+}
+
+
+bool checkHighamCovToCorr(const std::string &inputName,
+           const Eigen::MatrixXd &testInput,
+           const Eigen::MatrixXd &expectedResult)
+{
+    return checkHighamCovToCorr_T(inputName, testInput, expectedResult);
+}
+
+template<typename DerivedA,
+         typename DerivedB>
+bool checkLDLCovariance_T(const std::string &inputName,
+           const Eigen::MatrixBase<DerivedA> &testInput,
+                           const Eigen::MatrixBase<DerivedB> &expectedResult)
+{
+    std::cout << inputName << " checkLDLCovariance_T: Input:\n"
+              << testInput
+              << "\nExpected Result:\n"
+              << expectedResult
+              << std::endl;
+
+    Eigen::MatrixXd testInputX = testInput; // to test dynamically sized arrays
 
     auto resLDL = ncorr::findNearestCovarianceMatrix_LDL_GMW(testInput);
     auto resLDLX = ncorr::findNearestCovarianceMatrix_LDL_GMW(testInputX);
@@ -85,6 +139,102 @@ bool check_T(const std::string &inputName,
               << getCorrectString(resLDLXCorrect)
               << std::endl;
 
+    return resLDLXCorrect && resLDLVerdict;
+}
+
+template<typename DerivedA>
+bool checkLDLCovariance_T(const std::string &inputName,
+           const Eigen::MatrixBase<DerivedA> &testInput)
+{
+
+    std::cout << inputName << " checkLDLCovariance_T: Input:\n"
+              << testInput
+              << "\nNo Expected Result."
+              << std::endl;
+
+    Eigen::MatrixXd testInputX = testInput; // to test dynamically sized arrays
+
+    auto resLDL = ncorr::findNearestCovarianceMatrix_LDL_GMW(testInput);
+    auto resLDLX = ncorr::findNearestCovarianceMatrix_LDL_GMW(testInputX);
+    bool resLDLVerdict = ncorr::isPositiveSemiDefinite(resLDL);
+    bool resLDLXCorrect = !(resLDL.array() != resLDLX.array()).any();
+    std::cout << "Algorithm: LDL GMW. Result:\n"
+              << resLDL
+              << "\nResult (dynamic):\n"
+              << resLDLX
+              << "\nResulution:"
+              << getPassedString(resLDLVerdict)
+              << "\nDynamic Equal:"
+              << getCorrectString(resLDLXCorrect)
+              << std::endl;
+
+    return resLDLXCorrect && resLDLVerdict;
+}
+
+bool checkLDLCovariance(const std::string &inputName,
+           const Eigen::MatrixXd &testInput,
+           const Eigen::MatrixXd &expectedResult)
+{
+    return checkLDLCovariance_T(inputName, testInput, expectedResult);
+}
+
+
+bool checkLDLCovariance(const std::string &inputName,
+           const Eigen::MatrixXd &testInput)
+{
+    return checkLDLCovariance_T(inputName, testInput);
+}
+
+template<typename DerivedA>
+bool checkHighamCovariance_T(const std::string &inputName,
+           const Eigen::MatrixBase<DerivedA> &testInput)
+{
+
+    std::cout << inputName << " checkHighamCovariance_T: Input:\n"
+              << testInput
+              << "\nNo Expected Result."
+              << std::endl;
+
+    Eigen::MatrixXd testInputX = testInput; // to test dynamically sized arrays
+
+    auto resLDL = ncorr::findNearestCovarianceMatrix_Higham(testInput);
+    auto resLDLX = ncorr::findNearestCovarianceMatrix_Higham(testInputX);
+    bool resLDLVerdict = ncorr::isPositiveSemiDefinite(resLDL);
+    bool resLDLXCorrect = !(resLDL.array() != resLDLX.array()).any();
+    std::cout << "Algorithm: Higham Covariance. Result:\n"
+              << resLDL
+              << "\nResult (dynamic):\n"
+              << resLDLX
+              << "\nResulution:"
+              << getPassedString(resLDLVerdict)
+              << "\nDynamic Equal:"
+              << getCorrectString(resLDLXCorrect)
+              << std::endl;
+
+    return resLDLXCorrect && resLDLVerdict;
+}
+
+bool checkHighamCovariance(const std::string &inputName,
+           const Eigen::MatrixXd &testInput)
+{
+    return checkHighamCovariance_T(inputName, testInput);
+}
+
+
+template<typename DerivedA,
+         typename DerivedB>
+bool checkHighamCorrelation_T(const std::string &inputName,
+           const Eigen::MatrixBase<DerivedA> &testInput,
+                           const Eigen::MatrixBase<DerivedB> &expectedResult)
+{
+    std::cout << inputName << " checkHighamCorrelation_T: Input:\n"
+              << testInput
+              << "\nExpected Result:\n"
+              << expectedResult
+              << std::endl;
+
+    Eigen::MatrixXd testInputX = testInput; // to test dynamically sized arrays
+
     auto resHigham = ncorr::findNearestCorrelationMatrix_Higham(testInput, 0);
     auto resHighamX = ncorr::findNearestCorrelationMatrix_Higham(testInputX, 0);
     bool resHighamVerdict = isInTolerance(resHigham,
@@ -102,50 +252,47 @@ bool check_T(const std::string &inputName,
               << getCorrectString(resHighamXCorrect)
               << std::endl;
 
-    return resLDLVerdict &&
-           resLDLXCorrect &&
-           resHighamVerdict &&
+    return resHighamVerdict &&
            resHighamXCorrect;
 }
 
 
-bool check(const std::string &inputName,
+bool checkHighamCorrelation(const std::string &inputName,
            const Eigen::MatrixXd &testInput,
            const Eigen::MatrixXd &expectedResult)
 {
-    return check_T(inputName, testInput, expectedResult);
+    return checkHighamCorrelation_T(inputName, testInput, expectedResult);
 }
-
-bool checkIdentity()
-{
-    return check("Identity",
-                 getMatrix3DIdentity(),
-                 getMatrix3DIdentity());
-}
-
-bool checkNAGE()
-{
-    return check("NAGE",
-                 getNAGETestData(),
-                 getNAGEExpectedResult());
-}
-
-bool checkHighamExample()
-{
-    return check("Higham Example",
-                 getHighamExample2002TestData(),
-                 getHighamExample2002ExpectedResult());
-}
-
 
 int main(int argc, const char *argv[])
 {
+    bool allOK =
+            checkHighamCorrelation("Identity (Higham Correlation)",
+                                   getMatrix3DIdentity(),
+                                   getMatrix3DIdentity()) &&
+            checkHighamCorrelation("Higham (Higham Correlation)",
+                                   getHighamExample2002TestData(),
+                                   getHighamExample2002ExpectedResult()) &&
+            checkHighamCorrelation("NAGE (Higham Correlation)",
+                                   getNAGETestData(),
+                                   getNAGEExpectedResult()) &&
+            checkLDLCovariance("Identity (LDL Covariance)",
+                               getMatrix3DIdentity(),
+                               getMatrix3DIdentity()) &&
+            checkLDLCovariance("Higham (LDL Covariance)",
+                               getHighamExample2002TestData()) &&
+            checkLDLCovariance("NAGE (LDL Covariance)",
+                               getNAGETestData()) &&
+            checkHighamCovariance("Identity (Higham Covariance)",
+                               getMatrix3DIdentity()) &&
+            checkHighamCovariance("Higham (Higham Covariance)",
+                               getHighamExample2002TestData()) &&
+            checkHighamCovariance("NAGE (Higham Covariance)",
+                               getNAGETestData());
+    // TODO: Test LDL properly!!!
 
-    bool identityOK = checkIdentity();
-    bool nageOK =     checkNAGE();
-    bool highamOK =   checkHighamExample();
 
-    if(identityOK && nageOK && highamOK)
+    if(allOK)
     {
         std::cout << "All passed... :-)" << std::endl;
         return 0;
